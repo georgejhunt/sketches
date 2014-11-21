@@ -10,8 +10,15 @@ struct settings_t
   float ampsInScaleFactor; // volts per amp
   float ampRatio;
   float voltsScaleFactor;
+  char dummy[30]; // add space to the block that gets written
 } 
 settings;
+
+const int buckets=20;
+struct energy_t
+{ float wattHrs[buckets]; //each bucket will be written < 90,000 times for 20 years
+  long seconds[buckets];
+} energy;
 
 typedef struct button_t
 {

@@ -1,3 +1,4 @@
+
 // modified from batteryMonitor_v2 to drive second revision of surface mount board
 //     and hopefully compatible with through hole shield also
 // turns out that analog in pins changed because of thermistor and zener
@@ -6,6 +7,7 @@
 #include <LiquidCrystal.h>
 #include <avr/eeprom.h>
 #include <avr/io.h>
+#include <Time.h>
 #include "batteryMonitor.h"
 
 /*
@@ -44,13 +46,16 @@ const int inactiveState = 1;
 const int activeState = 0;
 const int longpressmillis = 1000; // milliseconds
 
-const float batterySize = 96.0;  //Battery capacity in AmpHrs
+const float batteryAmpHr = 96.0;  //Battery capacity in AmpHrs
+const float batteryVoltage = 12.0;
+const float batteryCapacity = batteryAmpHr * batteryVoltage;
 const float chargeEff = 0.85;   //Approx Amount of power into a lead acid battery that is stored
 
 Metro oneSecond = Metro(1000);  // Instantiate a one second timer
 Metro hundredMS = Metro(100);  // Instantiate a 100ms pd
 Metro desulfatePeriod = Metro(2);  // Instantiate a desulfate pd
 Metro lcdOnPd = Metro(30000);  // Instantiate a long period for backlight
+Metro wrtEprom = Metro(600000);  // 100,000 re-write cycles -- write every 10 min for yr=87600
 boolean desulfateOn = true;
 const int desulfatePin = 6;
 
@@ -92,7 +97,7 @@ void setup(){
         // port pull-up resistors are enabled - PUD(Pull Up Disable) = 0
         MCUCR = (1 << JTD) | (1 << IVCE) | (0 << PUD);
         MCUCR = (1 << JTD) | (0 << IVSEL) | (0 << IVCE) | (0 << PUD); blinkit = 0;
-  bCharge = batterySize * 0.95; //init charge 95%  full battery 
+  bCharge = batteryCapacity * 0.95; //init charge 95%  full battery 
   absorbCtr = 0;
   eqCtr = 0;
   chargeCtr = 60*9;
@@ -104,7 +109,7 @@ void setup(){
   lcd.begin(16, 2);
   
   blinkit = 0;
-  bCharge = batterySize * 0.95; //init charge 95%  full battery 
+  bCharge = batteryCapacity * 0.95; //init charge 95%  full battery 
   absorbCtr = 0;
   eqCtr = 0;
   chargeCtr = 60*9;
@@ -161,13 +166,14 @@ void loop(){
     sampleVoltsAmps();
     
     // Output serial time volts amps as to display
-    if (true){
-      Serial << volts << " Volts "<< 10.81 + analogRead(zenerInPin) * 0.004883 << " zener" << amps << " Amps watts:" << volts*amps << 
-        " inctr:" << analogRead(ampsInPin) << " outCtr:" << analogRead(ampsOutPin) << 
-        endl;
+    if (false){
+      Serial << volts << " Volts "<< 10.77 + analogRead(zenerInPin) * 0.004883 <<
+      " zener" << amps << " Amps watts:" << volts*amps << 
+      " inctr:" << analogRead(ampsInPin) << " outCtr:" << analogRead(ampsOutPin) << 
+      endl;
     }
 
-    if (true){
+    if (false){
       Serial << " Voltsctr: " << analogRead(voltsInPin) << " zenerctr:" << analogRead(zenerInPin) <<
       " inctr:" << analogRead(ampsInPin) << 
       " outCtr:" << analogRead(ampsOutPin) << " termisterctr:" << analogRead(thermistorInPin) <<
@@ -180,7 +186,7 @@ void loop(){
     displayStatus();
 
     if (stringComplete) {
-      if (Serial){Serial.println(inputString);}
+      //if (Serial){Serial.println(inputString);}
       process_string();
       
       // clear the string:
@@ -278,9 +284,10 @@ void process_string(){
  char *p;
    p = inputString;
    c=*p;
-   Serial << "verb:" << c << endl;
+   //Serial << "verb:" << c << endl;
    while (*p != ' ' && *p != '/n') p++; // advance past verb
-   Serial.println(*p);   serialValue = parse_decimal(p);
+   //Serial.println(*p);   
+   serialValue = parse_decimal(p);
    if (c == 'r'){
      report();
    } else if (c == 'v'){ // specify the correct voltage
@@ -322,14 +329,15 @@ void process_string(){
        Serial.println("reporting settings");
        
        int cnt = analogRead(voltsInPin);
+       Serial.print("Voltage: ");
+       Serial.print(cnt * settings.voltsScaleFactor,2);
        Serial.print("Voltage Scale Factor: ");
        Serial.print(settings.voltsScaleFactor,4);
        Serial.print(" Voltage Count: ");
-       Serial.print(cnt);
+       Serial.println(cnt);
        
        cnt = analogRead(zenerInPin);
-       Serial.print(" Zener Count: ");
-       Serial.println(cnt);
+       Serial <<"Voltage: " << scaleZener() << " Zener Count: " << cnt << endl;
        
        cnt = analogRead(ampsOutPin);
        Serial.print("discharge factor: ");
@@ -345,8 +353,12 @@ void process_string(){
  }
 
 }
-
 //-----------------------------------------------------------------------------------------------
+float scaleZener(){
+  return 10.77 + analogRead(zenerInPin) * 0.004883;
+}
+//-----------------------------------------------------------------------------------------------
+
 long parse_decimal(const char *str) // decimals are of form ###.###
 {
   int fraction = 0;
@@ -449,13 +461,13 @@ void displayStatus(){
   lcd.print(volts, 2); //display volts to one decimal place
   lcd.print("v ");
   // Print % full to display
-  if(bCharge < batterySize){
-    lcd.print(100 * bCharge/batterySize,1);
+  if(bCharge < batteryCapacity){
+    lcd.print(100 * bCharge/batteryCapacity,1);
     lcd.print("%");
   }
   else{
     lcd.print("Full ");
-    bCharge = batterySize;
+    bCharge = batteryCapacity;
   }
   //Print Battery Status to Display
   lcd.setCursor(0, 1);
@@ -480,7 +492,7 @@ void displayStatus(){
   default:
     lcd.print("Error    ");
   }
-  if(bCharge < bCharge * bLow){//Battery Low blink
+  if(bCharge < batteryCapacity * bLow){//Battery Low blink
     if(blinkit==0)
       lcd.print("Low      ");
     else
@@ -551,16 +563,47 @@ int freeRam() {
   int v; 
   return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
 }
+//-----------------------------------------------------------------------------------------------
 void      doDesulfate(){
   digitalWrite(desulfatePin,HIGH);
   delay(1);
   digitalWrite(desulfatePin,LOW);
 }
 //-----------------------------------------------------------------------------------------------
+void header() {
+  Serial << "Chg%  " << "Volt " << "Amps " << "temp " << "Chrg " << endl;
+}
+//-----------------------------------------------------------------------------------------------
+void write_wattHrs(int year){
+  int index = year % 20;
+  eeprom_update_float((void*)&wattHrs[index]+sizeof(settings),bCharge);
+  eeprom_uptate_long((void*)&seconds[index]+sizeof(settings),secs_1970);
+}
+
+//-----------------------------------------------------------------------------------------------
+float read_wattHrs(int year){
+  int index = year % 20;
+  sec_1970 = eeprom_read_float((void*)&seconds[index]+sizeof(settings));
+  bCharge - eeprom_read_float((void*)&wattHrs[index]+sizeof(settings));
+  return bCharge;
+}
+
+//-----------------------------------------------------------------------------------------------
 void report() {
-        Serial << volts << " Volts " << amps << " Amps watts:" << volts*amps << 
-        " inctr:" << analogRead(ampsInPin) << " outCtr:" << analogRead(ampsOutPin) << 
-        " bulk:" << bCharge << endl;
+  char soc[10];
+  char vZener[10];
+  float watts;
+  watts = volts * amps;
+  sprintf(vZener,"%2d",scaleZener());
+  // state of charge, volts, amps, temp, coulombs
+  sprintf(soc,"%4.1f",100.0 * (bCharge/batteryCapacity));
+  Serial << 100.0 * (bCharge/batteryCapacity) << "," << volts << "," << amps << "," << amps << 
+  "," <<  bCharge << "," << watts << "," << endl;
+      Serial << volts << " Volts "<< vZener <<
+      " zener" << amps << " Amps watts:" << volts*amps << 
+      " inctr:" << analogRead(ampsInPin) << " outCtr:" << analogRead(ampsOutPin) << 
+      endl;
+      Serial << "bCharge:"<<bCharge<<" batteryCapacity:"<<batteryCapacity<<endl;
 }
 
 
