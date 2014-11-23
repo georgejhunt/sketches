@@ -72,9 +72,11 @@ float  bCharge;  //power variable (watt-hours) total effective charge to and fro
 float bLow;  //low battery value
 
 char inputString[20];         // a array of char to hold incoming data
+char rectype[10];             // record type reported to server in data record
 boolean stringComplete = false;  // whether the string is complete
 int inputIndex = 0;// accumulation index
 long serialValue; // we'll use this as substitute for float biased by 1000
+uint32_t secs_1970;
 
 button_t button1;
 const int button1pin = 5;
@@ -97,19 +99,20 @@ void setup(){
         // port pull-up resistors are enabled - PUD(Pull Up Disable) = 0
         MCUCR = (1 << JTD) | (1 << IVCE) | (0 << PUD);
         MCUCR = (1 << JTD) | (0 << IVSEL) | (0 << IVCE) | (0 << PUD); blinkit = 0;
-  bCharge = batteryCapacity * 0.95; //init charge 95%  full battery 
+  //bCharge = batteryCapacity * 0.95; //init charge 95%  full battery 
   absorbCtr = 0;
   eqCtr = 0;
   chargeCtr = 60*9;
   disChargeCtr = 0;
   bLow = 0.5;  //Low battery warning when hattery 50% charged
   bStatus = 7;//This a an error value must be updated in Calculate bStatus
+  strcpy(rectype,"charging");
   
   // set up the LCD's number of rows and columns: 
   lcd.begin(16, 2);
   
   blinkit = 0;
-  bCharge = batteryCapacity * 0.95; //init charge 95%  full battery 
+  //bCharge = batteryCapacity * 0.95; //init charge 95%  full battery 
   absorbCtr = 0;
   eqCtr = 0;
   chargeCtr = 60*9;
@@ -126,7 +129,7 @@ void setup(){
   digitalWrite(backLitePin, LOW);  //LCD backlite  20.6 ma on battery pack
   button1.pin = button1pin;
   Serial.begin(9600); // Start the Serial communication for debug mainly
-  delay(10);
+  delay(5000);
   //while (!Serial);
  if (Serial){
      Serial <<"Free RAM: " << freeRam() << " of original 2000 bytes" << endl;  
@@ -143,7 +146,9 @@ void setup(){
     settings.ampsOutScaleFactor = 0.417;
     settings.ampsInScaleFactor = 0.417; 
     settings.ampRatio = 0.968;
+    settings.year = 2014;
     settings.voltsScaleFactor = 0.0163;
+    
     if (Serial) {Serial.println("initializing eeprom values");}
   } else {
     if (Serial){
@@ -153,6 +158,8 @@ void setup(){
     Serial <<  " ampRatio:" << settings.ampRatio*10 << " voltsScaleFactor:" <<
               settings.voltsScaleFactor*10 <<  " OutZero:" << settings.ampsOutZeroCount <<
               " InZero:" << settings.ampsInZeroCount << endl;
+    // retrieve the saved charge state of the battery
+    bCharge = read_wattHrs(settings.year);    
     }
   }
   
@@ -211,7 +218,9 @@ void loop(){
   if (desulfatePeriod.check() == 1 and desulfateOn) { // check if the metro has passed it's interval
      doDesulfate();
   }
-  PORTF = 0x00;
+  if(wrtEprom.check() == 1){
+    write_wattHrs(settings.year);
+  }
 } // end of loop
 
 //-----------------------------------------------------------------------------------------------
@@ -325,9 +334,12 @@ void process_string(){
      Serial.println("writing eeprom");
      settings.timesWritten++;
      eeprom_write_block((const void*)&settings, (void*)0, sizeof(settings));
+     bCharge = batteryCapacity;
+     write_wattHrs(settings.year);
    } else if (c == 'x') {
        Serial.println("reporting settings");
        
+       Serial << "Charge(wHr):" << bCharge << " % full:" << 100 * bCharge / batteryCapacity << endl;
        int cnt = analogRead(voltsInPin);
        Serial.print("Voltage: ");
        Serial.print(cnt * settings.voltsScaleFactor,2);
@@ -367,7 +379,7 @@ long parse_decimal(const char *str) // decimals are of form ###.###
   if (isneg) ++str;
   if (*str == '/n') return 0L;
   unsigned long ret = 1000UL * get_atol(str);
-  Serial << "ret:" << ret;
+  //Serial << "ret:" << ret;
   while (isDigit(*str)) ++str;  // advance over integer part
   if (*str == '.')
   {
@@ -380,7 +392,7 @@ long parse_decimal(const char *str) // decimals are of form ###.###
         
     }
   }
-  Serial << "return value:" << ret + fraction << endl;
+  //Serial << "return value:" << ret + fraction << endl;
   return ret + fraction;
 }
 
@@ -388,7 +400,7 @@ long parse_decimal(const char *str) // decimals are of form ###.###
 long get_atol(const char *str)
 {
   long ret = 0;
-  Serial.println("inget_atoal");
+  //Serial.println("inget_atoal");
   while (isDigit(*str))
     ret = 10 * ret + *str++ - '0';
   return ret;
@@ -467,7 +479,7 @@ void displayStatus(){
   }
   else{
     lcd.print("Full ");
-    bCharge = batteryCapacity;
+    //bCharge = batteryCapacity;
   }
   //Print Battery Status to Display
   lcd.setCursor(0, 1);
@@ -576,15 +588,17 @@ void header() {
 //-----------------------------------------------------------------------------------------------
 void write_wattHrs(int year){
   int index = year % 20;
-  eeprom_update_float((void*)&wattHrs[index]+sizeof(settings),bCharge);
-  eeprom_uptate_long((void*)&seconds[index]+sizeof(settings),secs_1970);
+  eeprom_update_float((float*)&energy.wattHrs[index]+sizeof(settings),bCharge);
+  eeprom_update_dword((uint32_t*)&energy.seconds[index]+sizeof(settings),secs_1970);
+  Serial << "writing wattHrs:" << bCharge << endl;
 }
 
 //-----------------------------------------------------------------------------------------------
 float read_wattHrs(int year){
   int index = year % 20;
-  sec_1970 = eeprom_read_float((void*)&seconds[index]+sizeof(settings));
-  bCharge - eeprom_read_float((void*)&wattHrs[index]+sizeof(settings));
+  secs_1970 = eeprom_read_dword((uint32_t*)&energy.seconds[index]+sizeof(settings));
+  bCharge = eeprom_read_float((float*)&energy.wattHrs[index]+sizeof(settings));
+  Serial << "reading wattHrs:" << bCharge << endl;
   return bCharge;
 }
 
@@ -597,13 +611,15 @@ void report() {
   sprintf(vZener,"%2d",scaleZener());
   // state of charge, volts, amps, temp, coulombs
   sprintf(soc,"%4.1f",100.0 * (bCharge/batteryCapacity));
-  Serial << 100.0 * (bCharge/batteryCapacity) << "," << volts << "," << amps << "," << amps << 
-  "," <<  bCharge << "," << watts << "," << endl;
+  Serial << 100.0 * (bCharge/batteryCapacity) << "," << volts << "," << amps <<
+  "," << "68.0"  << "," <<  bCharge << "," << rectype << "," << watts << "," << endl;
+  /*
       Serial << volts << " Volts "<< vZener <<
       " zener" << amps << " Amps watts:" << volts*amps << 
       " inctr:" << analogRead(ampsInPin) << " outCtr:" << analogRead(ampsOutPin) << 
       endl;
       Serial << "bCharge:"<<bCharge<<" batteryCapacity:"<<batteryCapacity<<endl;
+   */
 }
 
 

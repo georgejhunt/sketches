@@ -1,15 +1,15 @@
-#!/bin/sh -x
+#!/bin/sh 
 # Copyright (C) 2011 One Laptop per Child
 # Power logging script
 # Released under GPLv3
 
 VERSION="0.1"
 HOST=`hostname -s`
-SITE="silar"
+SITE="greenwave"
 
 # The delay between readings.
-#DELAY=120
-DELAY=10
+DELAY=120
+#DELAY=10
 FAST_SAMPLE_V=5200000
 
 # Make sure we have a correct system date.  As of now
@@ -25,7 +25,8 @@ FDATE=`date "+%y%m%d-%H%M%S"`
 
 KERNVER=`uname -r | cut -c 1-6 | sed 's/[\._-]//g'`
 
-LOGFILE="pwr-$FDATE-$SITE.csv"
+LOGFILE="/root/$SITE/sniffr/pwr-$FDATE-$SITE.csv"
+mkdir -p "/root/$SITE/sniffr"
 
 
 echo "Starting log $LOGFILE"
@@ -66,14 +67,16 @@ function get_seconds {
 
 function take_reading {
         DEV=/dev/ttyACM0
-	( stty -F $DEV ispeed 9600 ospeed 9600 -ignpar cs8; echo "r";sleep 3;read ans)<$DEV>$DEV
-	CAPLEVEL=`cat $ans|cut -d "," -s -f 1`
-	VOLT=`cat $ans|cut -d "," -s -f 2`
-	CURR=`cat $ans|cut -d "," -s -f 3`
-	TEMP=`cat $ans|cut -d "," -s -f 4`
-	STAT=`cat $ans|cut -d "," -s -f 5`
-
-	ACR=`cat $ans|cut -d "," -s -f 6`
+	 (stty -F $DEV ispeed 9600 ospeed 9600 -ignpar cs8; echo "r";sleep 2;read ans;echo $ans>line)<$DEV>$DEV
+	ans=`cat line`
+	echo $ans
+	CAPLEVEL=`echo $ans|cut -d "," -s -f 1`
+	VOLT=`echo $ans|cut -d "," -s -f 2`
+	CURR=`echo $ans|cut -d "," -s -f 3`
+	TEMP=`echo $ans|cut -d "," -s -f 4`
+	STAT=`echo $ans|cut -d "," -s -f 5`
+	ACR=`echo $ans|cut -d "," -s -f 6`
+	MAh=`echo $ans|cut -d "," -s -f 7`
 	THIS_SEC=$(get_seconds)
 	NET_MINUTES=$(( ( ${THIS_SEC} - ${START_TIME} ) / 60 ))	
 	echo `date +%s`",$CAPLEVEL,$VOLT,$CURR,$TEMP,$ACR,$STAT,$MAh,$NET_MINUTES" | tee -a $LOGFILE

@@ -3,7 +3,7 @@ struct settings_t
 {
   byte flag;
   long timesWritten;
-  int mode;
+  int year;
   int ampsOutZeroCount;
   int ampsInZeroCount;
   float ampsOutScaleFactor;
@@ -17,7 +17,7 @@ settings;
 const int buckets=20;
 struct energy_t
 { float wattHrs[buckets]; //each bucket will be written < 90,000 times for 20 years
-  long seconds[buckets];
+  long seconds[buckets];  //time is seconds when the last wattHrs was read
 } energy;
 
 typedef struct button_t
