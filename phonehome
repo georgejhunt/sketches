@@ -1,0 +1,42 @@
+#!/bin/bash -x
+# script to copy relevent information to the vpn server
+# called once an hour by crontab
+
+VPNSERVER=5.5.0.1
+DEPLOYNAME=greenwave
+
+function skip_ifrecent {
+RECENT_CHECK='-daystart -mtime 0' 
+if [ `find ~/$DEPLOYNAME/xfer-done.txt $RECENT_CHECK 2>/dev/null` ];then
+exit 0
+fi
+}
+
+function skip_ifoffline {
+  ping -c 3 -w 3 $VPNSERVER
+  if [ $? -ne 0 ]; then
+    exit 0
+  fi
+}
+
+function cpy_pwrlogs_ifxo {
+if [ -f /proc/device-tree/mfg-data/MN ]; then
+    rsync -rp -e "ssh -i /root/.ssh/remote_site" /home/olpc/power-logs site@5.5.0.1:/home/site/$DEPLOYNAME
+    acpower -d -p > ~/$DEPLOYNAME/acpower.txt
+fi
+}
+
+mkdir -p ~/$DEPLOYNAME
+
+skip_ifoffline
+skip_ifrecent
+
+cpy_pwrlogs_ifxo
+
+# copy data that should be uploaded to $DEPLOYNAME
+vnstat -d > ~/$DEPLOYNAME/daily_vnstat.txt
+rsync -rp  /var/www/html/munin/ ~/$DEPLOYNAME/munin
+date > ~/$DEPLOYNAME/last_update.txt
+rsync -rp -e "ssh -i /root/.ssh/remote_site" ~/$DEPLOYNAME/* site@5.5.0.1:/home/site/$DEPLOYNAME/
+
+touch ~/$DEPLOYNAME/xfer-done.txt
