@@ -2,7 +2,7 @@
 showPowerFile();
 
 function showPowerFile() {
-  $("#chart").off().html("");
+  $("#chart2").off().html("");
   $("#current").text('pwr-data');
   $.get('pwr-data.csv', function(data) {
     var rows = data.split("\n");
@@ -15,33 +15,24 @@ function showPowerFile() {
         var tstamp = new Date(rows[r][0] * 1000);
         times.push(tstamp);
         chargeLevels.push(rows[r][1] * 1);
-        voltageLevels.push(rows[r][2] * 1);
       }
     }
     c3.generate({
+	bindto: '#chart2',
       data: {
         x: 'time',
         columns: [
           ['time'].concat(times),
           ['charge'].concat(chargeLevels),
-          ['voltage'].concat(voltageLevels),
         ],
         color: "#77e",
-	axis: {
-		charge: 'y2'
-	}
       },
       
       axis: {
-	y: {
-	min: 12,
-	max: 15
-	},
-        y2: {
-	  min:  50,
-	  max:  100,
-          show: true,
-        },
+//	y: {
+//	min: 50,
+//	max: 100
+//	},
         x: {
           type: 'timeseries',
           tick: {
