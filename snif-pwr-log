@@ -67,7 +67,7 @@ function get_seconds {
 
 function take_reading {
         DEV=/dev/ttyACM0
-	 (stty -F $DEV ispeed 9600 ospeed 9600 -ignpar cs8; echo "r";sleep 2;read ans;echo $ans>line)<$DEV>$DEV
+	 (stty -F $DEV ispeed 9600 ospeed 9600 -ignpar cs8; echo "r";sleep 3;read ans;echo $ans>line)<$DEV>$DEV
 	ans=`cat line`
 	echo $ans
 	CAPLEVEL=`echo $ans|cut -d "," -s -f 1`

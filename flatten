@@ -5,13 +5,9 @@ import os
 import sys
 from datetime import datetime
 
-import olpcpwrlog
-DEPLOYMENT=greenwave
-DATAROOT = '/root/$DEPLOYMENT/sniffr'
+DEPLOYMENT="greenwave"
+DATAROOT = '/root/%s/sniffr'%DEPLOYMENT
 def main():
-
-    pl = olpcpwrlog.PwrLogfile()
-
     filenames = []
     datadir = "%s/logs"%(DATAROOT,)
     for root, subdirs, names in os.walk(datadir):
@@ -23,47 +19,22 @@ def main():
     for fname in filenames:
         fname = os.path.join(root,fname)
         filenum+=1
-        fields = []
-        values = []
+	outfile = "%s/pwr-data.csv"%DATAROOT
+	outfd = open(outfile,"w")
         try:
-            pl.parse_header(fname)
+	    skip = True
+	    for  line in open(fname):
+		    if line.startswith("<StartData>"):
+			skip = False
+			continue
+		    if skip:
+			continue
+		    outfd.write(line)
         except:
-            print "%s : Could not parse header. Error: " % fname,
+            print "%s : Could not open. Error: " % fname,
             print sys.exc_info()
             continue
-
-        samples,errors = pl.parse_records()
-        if len(errors):
-            print "%s : Skipping.  Line errors: " % fname
-            for e in errors:
-                print e
-            continue
-
-
-        fields = ["date_sec","soc","voltage","amperage","temp","acr","status","event","date_dtval"]
-        #print(fields)			 
-        samples.sort(key=lambda x:x[0])
-        for sval in samples:
-            values = []
-            #values.append(file_id) 
-            values.append(int(sval[0]))
-            if sval[0] < start:
-                continue
-            if sval[0] > end:
-                break
-            values.append(int(sval[1]))
-            values.extend(sval[2:])
-            #dbc.insert_row('samples',fields,values)
-            if values[7].find("ac") != -1 or \
-               values[7].find("startup") != -1 or \
-               values[7].find("shutdown") != -1:
-                selected_values.append(values)
-    selected_values.sort(key=lambda x:x[0])
-    #print(selected_values)
-    fname = "%s/pwr-data.csv"%DATAROOT
-    fd = open(fname,"rw")
-    for line in selected_values:
-        fd.write(line)
-    close(fd)
+    outfd.close()
+	    	
 main()
-# vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
+#vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
