@@ -16,11 +16,11 @@ def main():
     filenum = 0
     filenames.sort()
     selected_values = []
+    outfile = "%s/pwr-data.csv"%DATAROOT
+    outfd = open(outfile,"w")
     for fname in filenames:
         fname = os.path.join(root,fname)
         filenum+=1
-	outfile = "%s/pwr-data.csv"%DATAROOT
-	outfd = open(outfile,"w")
         try:
 	    skip = True
 	    for  line in open(fname):

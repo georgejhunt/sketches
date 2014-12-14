@@ -8,9 +8,8 @@ HOST=`hostname -s`
 SITE="greenwave"
 
 # The delay between readings.
-DELAY=120
+DELAY=300
 #DELAY=10
-FAST_SAMPLE_V=5200000
 
 # Make sure we have a correct system date.  As of now
 # Jan 1 2012 is in the past so use that as a marker.
