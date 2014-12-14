@@ -18,7 +18,7 @@ function showPowerFile() {
       }
     }
     c3.generate({
-	bindto: '#chart2',
+  	bindto: '#chart2',
       data: {
         x: 'time',
         columns: [

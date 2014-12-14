@@ -9,6 +9,7 @@ function showPowerFile() {
     var times = [];
     var chargeLevels = [];
     var voltageLevels = [];
+    var watts = [];
     for (var r = 0; r < rows.length; r++) {
       rows[r] = rows[r].split(",");
       if (rows[r].length > 1) {
@@ -16,9 +17,11 @@ function showPowerFile() {
         times.push(tstamp);
         chargeLevels.push(rows[r][1] * 1);
         voltageLevels.push(rows[r][2] * 1);
+        watts.push(rows[r][7] * 1);
       }
     }
     c3.generate({
+      bindto: '#chart1',
       data: {
         x: 'time',
         columns: [
@@ -27,7 +30,7 @@ function showPowerFile() {
           ['voltage'].concat(voltageLevels),
         ],
         color: "#77e",
-	axis: {
+	axes: {
 		charge: 'y2'
 	}
       },
@@ -38,10 +41,36 @@ function showPowerFile() {
 	max: 15
 	},
         y2: {
-	  min:  50,
+	  min:  80,
 	  max:  100,
           show: true,
         },
+        x: {
+          type: 'timeseries',
+          tick: {
+            format: function(x) {
+              return x.toString()
+            }
+          }
+        },
+      }
+    });
+    c3.generate({
+	bindto: '#chart2',
+      data: {
+        x: 'time',
+        columns: [
+          ['time'].concat(times),
+          ['wattsInOut'].concat(watts),
+        ],
+        color: "#77e",
+      },
+      
+      axis: {
+//	y: {
+//	min: 50,
+//	max: 100
+//	},
         x: {
           type: 'timeseries',
           tick: {
