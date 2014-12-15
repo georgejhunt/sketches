@@ -3,14 +3,37 @@
 import os.path
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 DEPLOYMENT="greenwave"
 DATAROOT = '/root/%s/sniffr'%DEPLOYMENT
-def main():
+def before_now_ascii(days):
+    year_ago = date.today() - timedelta(-365)
+    return year_ago.strftime("%y%m%d")
+    
+def ts_before_now(days):
+    return datetime.now() - timedelta(days).total_seconds()
+    
+def select_data(sample_every, infile, outfile, start_timestamp):
+    countdown = sample_every
+    outfd = open(outfile,"w")
+    for  line in open(infile):
+        if line.split(",")[0] < start_timestamp:
+            continue
+        countdown -= 1
+        if countdown < 1:
+            countdown = sample_every
+            outfd.write(line)
+    outfd.close()
+            
+def serialize():
     filenames = []
     datadir = "%s/logs"%(DATAROOT,)
+    year_ago_ascii = before_now_ascii(365)
     for root, subdirs, names in os.walk(datadir):
+        # reject any data older than a year
+        if "pwr-%s"%year_ago_ascii > names:
+            continue
         filenames.extend(names)
     numfiles = len(filenames)
     filenum = 0
@@ -22,19 +45,41 @@ def main():
         fname = os.path.join(root,fname)
         filenum+=1
         try:
-	    skip = True
-	    for  line in open(fname):
-		    if line.startswith("<StartData>"):
-			skip = False
-			continue
-		    if skip:
-			continue
-		    outfd.write(line)
+            skip = True
+            for  line in open(fname):
+                if line.startswith("<StartData>"):
+                    skip = False
+                    continue
+                if skip:
+                    continue
+                if line.find(",,,") > -1:
+                    continue
+                if line.find("nan") > -1: # nan = not a number
+                    continue
+                outfd.write(line)
         except:
             print "%s : Could not open. Error: " % fname,
             print sys.exc_info()
             continue
     outfd.close()
-	    	
-main()
+            
+serialize()
+infile = "%s/pwr-data.csv"%DATAROOT
+outfile = "%s/year-data.csv"%DATAROOT
+select_after = ts_before_now(365)
+select_data(100, infile, outfile, select_after)
+
+
+outfile = "%s/month-data.csv"%DATAROOT
+select_after = ts_before_now(31)
+select_data(10, infile, outfile, select_after)
+
+outfile = "%s/week-data.csv"%DATAROOT
+select_after = ts_before_now(7)
+select_data(1, infile, outfile, select_after)
+
+outfile = "%s/day-data.csv"%DATAROOT
+select_after = ts_before_now(1)
+select_data(1, infile, outfile, select_after)
+
 #vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
