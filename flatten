@@ -4,36 +4,36 @@ import os.path
 import os
 import sys
 from datetime import datetime, date, timedelta
+import time
 
 DEPLOYMENT="greenwave"
 DATAROOT = '/root/%s/sniffr'%DEPLOYMENT
 def before_now_ascii(days):
-    year_ago = date.today() - timedelta(-365)
+    year_ago = date.today() - timedelta(365)
     return year_ago.strftime("%y%m%d")
     
 def ts_before_now(days):
-    return datetime.now() - timedelta(days).total_seconds()
+    return time.mktime(datetime.now().timetuple()) - timedelta(days).total_seconds()
     
 def select_data(sample_every, infile, outfile, start_timestamp):
     countdown = sample_every
     outfd = open(outfile,"w")
     for  line in open(infile):
-        if line.split(",")[0] < start_timestamp:
+        if float(line.split(",")[0]) < float(start_timestamp):
             continue
         countdown -= 1
         if countdown < 1:
             countdown = sample_every
             outfd.write(line)
     outfd.close()
-            
+
 def serialize():
     filenames = []
     datadir = "%s/logs"%(DATAROOT,)
-    year_ago_ascii = before_now_ascii(365)
+    year_ago_ascii = before_now_ascii(-365)
     for root, subdirs, names in os.walk(datadir):
         # reject any data older than a year
-        if "pwr-%s"%year_ago_ascii > names:
-            continue
+	prefix ="pwr-%s"%year_ago_ascii
         filenames.extend(names)
     numfiles = len(filenames)
     filenum = 0
@@ -42,6 +42,9 @@ def serialize():
     outfile = "%s/pwr-data.csv"%DATAROOT
     outfd = open(outfile,"w")
     for fname in filenames:
+        if prefix > fname:
+	    print "%s---%s"%(prefix,fname,)
+            continue
         fname = os.path.join(root,fname)
         filenum+=1
         try:
@@ -64,6 +67,7 @@ def serialize():
     outfd.close()
             
 serialize()
+
 infile = "%s/pwr-data.csv"%DATAROOT
 outfile = "%s/year-data.csv"%DATAROOT
 select_after = ts_before_now(365)
