@@ -8,8 +8,8 @@ import time
 
 DEPLOYMENT="greenwave"
 DATAROOT = '/root/%s/sniffr'%DEPLOYMENT
-def before_now_ascii(days):
-    year_ago = date.today() - timedelta(365)
+def before_now_ascii(days=365):
+    year_ago = date.today() - timedelta(days)
     return year_ago.strftime("%y%m%d")
     
 def ts_before_now(days):
@@ -30,20 +30,22 @@ def select_data(sample_every, infile, outfile, start_timestamp):
 def serialize():
     filenames = []
     datadir = "%s/logs"%(DATAROOT,)
-    year_ago_ascii = before_now_ascii(-365)
     for root, subdirs, names in os.walk(datadir):
-        # reject any data older than a year
-	prefix ="pwr-%s"%year_ago_ascii
         filenames.extend(names)
     numfiles = len(filenames)
     filenum = 0
     filenames.sort()
-    selected_values = []
+
     outfile = "%s/pwr-data.csv"%DATAROOT
     outfd = open(outfile,"w")
+
+    # reject any data older than a year
+    year_ago_ascii = before_now_ascii(365)
+    prefix ="pwr-%s"%year_ago_ascii
+
     for fname in filenames:
         if prefix > fname:
-	    print "%s---%s"%(prefix,fname,)
+	    print "Ignoring %s---%s as data over a year old"%(prefix,fname,)
             continue
         fname = os.path.join(root,fname)
         filenum+=1
@@ -72,7 +74,6 @@ infile = "%s/pwr-data.csv"%DATAROOT
 outfile = "%s/year-data.csv"%DATAROOT
 select_after = ts_before_now(365)
 select_data(100, infile, outfile, select_after)
-
 
 outfile = "%s/month-data.csv"%DATAROOT
 select_after = ts_before_now(31)
